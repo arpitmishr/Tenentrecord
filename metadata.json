@@ -1,0 +1,5 @@
+{
+  "name": "Tenant & Room Management Pro",
+  "description": "A comprehensive application to manage tenants, rooms, electricity bills, and additional services. Data is stored locally in your browser. Note: While this is a web application, it can be packaged into an APK for mobile devices using tools like Capacitor or Cordova, which is an external process.",
+  "requestFramePermissions": []
+}
