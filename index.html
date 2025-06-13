@@ -2,14 +2,491 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <title>Tenant & Room Management</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta name="theme-color" content="#1976d2"/>
-  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-  <title>Tenant & Room Management</title>
+  <!-- Material UI and icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <style>
+    body { margin: 0; background: #f4f6fb; }
+    #root { min-height: 100vh; }
+  </style>
 </head>
 <body>
-  <noscript>You need to enable JavaScript to run this app.</noscript>
   <div id="root"></div>
+  <!-- React, ReactDOM, Babel, LocalForage, Material-UI, Emotion (for styling) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/localforage/dist/localforage.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.14.0/umd/material-ui.development.js"></script>
+  <script src="https://unpkg.com/@mui/icons-material@5.14.0/umd/material-ui-icons.development.js"></script>
+  <script src="https://unpkg.com/@emotion/react@11.7.1/umd/emotion-react.umd.min.js"></script>
+  <script src="https://unpkg.com/@emotion/styled@11.6.0/umd/emotion-styled.umd.min.js"></script>
+  <!-- Main App -->
+  <script type="text/babel">
+    const {
+      AppBar, Toolbar, Typography, Tabs, Tab, Container, Box, TextField, Button, List, ListItem, ListItemText, IconButton,
+      MenuItem, Select, Checkbox, Dialog, DialogTitle, DialogContent, DialogActions, InputLabel, Snackbar, Alert
+    } = MaterialUI;
+    const { Delete, UploadFile } = MaterialUIIcons;
+
+    // DB KEYS
+    const ROOM_DB = "rooms";
+    const TENANT_DB = "tenants";
+    const SETTINGS_DB = "settings";
+    const INVOICE_DB = "invoices";
+
+    // Room Management
+    function RoomList() {
+      const [rooms, setRooms] = React.useState([]);
+      const [roomName, setRoomName] = React.useState("");
+      const [meter, setMeter] = React.useState("");
+
+      React.useEffect(() => {
+        localforage.getItem(ROOM_DB).then(data => setRooms(data || []));
+      }, []);
+
+      const addRoom = () => {
+        if (!roomName) return;
+        const newRooms = [
+          ...rooms,
+          { id: Date.now(), name: roomName.trim(), meter: Number(meter) || 0 }
+        ];
+        setRooms(newRooms);
+        localforage.setItem(ROOM_DB, newRooms);
+        setRoomName(""); setMeter("");
+      };
+
+      const deleteRoom = (id) => {
+        const newRooms = rooms.filter(r => r.id !== id);
+        setRooms(newRooms);
+        localforage.setItem(ROOM_DB, newRooms);
+      };
+
+      const setNewMeter = (id, newValue) => {
+        const newRooms = rooms.map(room =>
+          room.id === id ? { ...room, meter: Number(newValue) } : room
+        );
+        setRooms(newRooms);
+        localforage.setItem(ROOM_DB, newRooms);
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Rooms</Typography>
+          <Box display="flex" gap={2} mt={1} alignItems="center" flexWrap="wrap">
+            <TextField label="Room Name/No." value={roomName} onChange={e => setRoomName(e.target.value)} />
+            <TextField label="Initial Meter" type="number" value={meter} onChange={e => setMeter(e.target.value)} />
+            <Button variant="contained" onClick={addRoom}>Add Room</Button>
+          </Box>
+          <List>
+            {rooms.map(room => (
+              <ListItem key={room.id} secondaryAction={
+                <IconButton edge="end" onClick={() => deleteRoom(room.id)}><Delete /></IconButton>
+              }>
+                <ListItemText
+                  primary={`${room.name}`}
+                  secondary={
+                    <Box display="flex" alignItems="center" gap={2}>
+                      Meter:{" "}
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={room.meter}
+                        onChange={e => setNewMeter(room.id, e.target.value)}
+                        style={{ width: 80 }}
+                      />
+                    </Box>
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      );
+    }
+
+    // Tenant Management
+    function TenantList() {
+      const [tenants, setTenants] = React.useState([]);
+      const [rooms, setRooms] = React.useState([]);
+      const [form, setForm] = React.useState({
+        name: "", room: "", checkIn: "",
+        verified: false, rent: "", prevMeter: ""
+      });
+
+      React.useEffect(() => {
+        localforage.getItem(TENANT_DB).then(data => setTenants(data || []));
+        localforage.getItem(ROOM_DB).then(data => setRooms(data || []));
+      }, []);
+
+      const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setForm(f => ({ ...f, [name]: type === "checkbox" ? checked : value }));
+      };
+
+      const addTenant = () => {
+        if (!form.name || !form.room || !form.checkIn) return;
+        const newTenants = [
+          ...tenants,
+          {
+            ...form,
+            id: Date.now(),
+            services: [],
+            meterHistory: [
+              { date: form.checkIn, value: Number(form.prevMeter) || 0 }
+            ]
+          }
+        ];
+        setTenants(newTenants);
+        localforage.setItem(TENANT_DB, newTenants);
+        setForm({ name: "", room: "", checkIn: "", verified: false, rent: "", prevMeter: "" });
+      };
+
+      const deleteTenant = (id) => {
+        const newTenants = tenants.filter(t => t.id !== id);
+        setTenants(newTenants);
+        localforage.setItem(TENANT_DB, newTenants);
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Tenants</Typography>
+          <Box display="flex" gap={2} mt={1} flexWrap="wrap">
+            <TextField label="Name" name="name" value={form.name} onChange={handleChange} />
+            <Select label="Room" name="room" value={form.room} onChange={handleChange} displayEmpty>
+              <MenuItem value="">Room</MenuItem>
+              {rooms.map(room => (<MenuItem key={room.id} value={room.name}>{room.name}</MenuItem>))}
+            </Select>
+            <TextField label="Check-in Date" name="checkIn" type="date" InputLabelProps={{ shrink: true }} value={form.checkIn} onChange={handleChange} />
+            <TextField label="Rent" name="rent" value={form.rent} onChange={handleChange} />
+            <TextField label="Prev Meter" name="prevMeter" value={form.prevMeter} onChange={handleChange} />
+            <Checkbox name="verified" checked={form.verified} onChange={handleChange} />Verified
+            <Button variant="contained" onClick={addTenant}>Add Tenant</Button>
+          </Box>
+          <List>
+            {tenants.map(tenant => (
+              <ListItem
+                key={tenant.id}
+                secondaryAction={
+                  <IconButton edge="end" onClick={() => deleteTenant(tenant.id)}><Delete /></IconButton>
+                }
+              >
+                <ListItemText
+                  primary={`${tenant.name} (${tenant.room})`}
+                  secondary={`Check-in: ${tenant.checkIn} | Rent: ₹${tenant.rent} | Verified: ${tenant.verified ? "Yes" : "No"}`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      );
+    }
+
+    // Electricity Meter Management
+    function ElectricityManager() {
+      const [tenants, setTenants] = React.useState([]);
+      const [selected, setSelected] = React.useState("");
+      const [newMeter, setNewMeter] = React.useState("");
+      const [settings, setSettings] = React.useState({ unitRate: 7 });
+
+      React.useEffect(() => {
+        localforage.getItem(TENANT_DB).then(data => setTenants(data || []));
+        localforage.getItem(SETTINGS_DB).then(val => setSettings(val || { unitRate: 7 }));
+      }, []);
+
+      const updateMeter = () => {
+        setTenants(prev => {
+          const upd = prev.map(t => {
+            if (t.id === Number(selected)) {
+              const prevUnit = t.meterHistory[t.meterHistory.length - 1]?.value || 0;
+              t.meterHistory.push({ date: new Date().toISOString().slice(0, 10), value: Number(newMeter) });
+              t.lastUnitConsumed = Number(newMeter) - prevUnit;
+            }
+            return t;
+          });
+          localforage.setItem(TENANT_DB, upd);
+          return [...upd];
+        });
+        setNewMeter("");
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Electricity Meter Update</Typography>
+          <Box display="flex" gap={2} mt={1} flexWrap="wrap">
+            <Select value={selected} onChange={e => setSelected(e.target.value)} displayEmpty>
+              <MenuItem value="">Select Tenant</MenuItem>
+              {tenants.map(t => (<MenuItem key={t.id} value={t.id}>{t.name} ({t.room})</MenuItem>))}
+            </Select>
+            <TextField label="Current Meter" value={newMeter} onChange={e => setNewMeter(e.target.value)} />
+            <Button variant="contained" onClick={updateMeter} disabled={!selected || !newMeter}>Update</Button>
+          </Box>
+          <Typography variant="body2">Current Unit Rate: ₹{settings.unitRate}</Typography>
+          <List>
+            {tenants.map(t => (
+              <ListItem key={t.id}>
+                <ListItemText
+                  primary={`${t.name} (${t.room})`}
+                  secondary={
+                    t.meterHistory && t.meterHistory.length > 1
+                      ? `Prev: ${t.meterHistory[t.meterHistory.length - 2].value}, Curr: ${t.meterHistory[t.meterHistory.length - 1].value}, Consumed: ${t.lastUnitConsumed || 0}`
+                      : "No meter update yet"
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      );
+    }
+
+    // Service Management
+    function ServiceManager() {
+      const [tenants, setTenants] = React.useState([]);
+      const [selected, setSelected] = React.useState("");
+      const [service, setService] = React.useState("");
+      const [charge, setCharge] = React.useState("");
+      const [defaultCharge, setDefaultCharge] = React.useState(0);
+
+      React.useEffect(() => {
+        localforage.getItem(TENANT_DB).then(data => setTenants(data || []));
+        localforage.getItem(SETTINGS_DB).then(val => setDefaultCharge(val?.defaultServiceCharge || 0));
+      }, []);
+
+      const addService = () => {
+        setTenants(prev => {
+          const upd = prev.map(t => {
+            if (t.id === Number(selected)) {
+              t.services = t.services || [];
+              t.services.push({ name: service, charge: Number(charge), date: new Date().toISOString().slice(0, 10) });
+            }
+            return t;
+          });
+          localforage.setItem(TENANT_DB, upd);
+          return [...upd];
+        });
+        setService(""); setCharge("");
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Additional Services</Typography>
+          <Box display="flex" gap={2} mt={1} flexWrap="wrap">
+            <Select value={selected} onChange={e => setSelected(e.target.value)} displayEmpty>
+              <MenuItem value="">Select Tenant</MenuItem>
+              {tenants.map(t => (<MenuItem key={t.id} value={t.id}>{t.name} ({t.room})</MenuItem>))}
+            </Select>
+            <TextField label="Service Name" value={service} onChange={e => setService(e.target.value)} />
+            <TextField label="Charge" value={charge} onChange={e => setCharge(e.target.value)} placeholder={`Default: ₹${defaultCharge}`} />
+            <Button variant="contained" onClick={addService} disabled={!selected || !service || !charge}>Add</Button>
+          </Box>
+          <List>
+            {tenants.map(t =>
+              t.services && t.services.length > 0 && (
+                <ListItem key={t.id}>
+                  <ListItemText
+                    primary={`${t.name} (${t.room})`}
+                    secondary={t.services.map(s => `${s.name}: ₹${s.charge} (${s.date})`).join(", ")}
+                  />
+                </ListItem>
+              )
+            )}
+          </List>
+        </Box>
+      );
+    }
+
+    // Invoice Management
+    function InvoiceManager() {
+      const [tenants, setTenants] = React.useState([]);
+      const [settings, setSettings] = React.useState({ unitRate: 7, defaultServiceCharge: 0 });
+      const [open, setOpen] = React.useState(false);
+      const [selectedTenant, setSelectedTenant] = React.useState("");
+      const [qrFile, setQrFile] = React.useState(null);
+      const [invoiceAmount, setInvoiceAmount] = React.useState("");
+      const [unitUsed, setUnitUsed] = React.useState("");
+      const [extraCharge, setExtraCharge] = React.useState("");
+      const [invoiceList, setInvoiceList] = React.useState([]);
+      const [snack, setSnack] = React.useState({ open: false, msg: "", sev: "success" });
+      const qrInputRef = React.useRef();
+
+      React.useEffect(() => {
+        localforage.getItem(TENANT_DB).then(val => setTenants(val || []));
+        localforage.getItem(SETTINGS_DB).then(val => setSettings(val || { unitRate: 7, defaultServiceCharge: 0 }));
+        localforage.getItem(INVOICE_DB).then(val => setInvoiceList(val || []));
+      }, []);
+
+      const openDialog = () => {
+        setOpen(true);
+        setQrFile(null);
+        setSelectedTenant("");
+        setInvoiceAmount(""); setUnitUsed(""); setExtraCharge("");
+      };
+
+      const closeDialog = () => setOpen(false);
+
+      const handleQrChange = e => {
+        if (e.target.files && e.target.files[0]) setQrFile(e.target.files[0]);
+      };
+
+      const handleGenerateInvoice = async () => {
+        if (!selectedTenant || !invoiceAmount) { setSnack({ open: true, msg: "Select tenant and amount!", sev: "error" }); return; }
+        let qrDataUrl = "";
+        if (qrFile) {
+          qrDataUrl = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(qrFile);
+          });
+        }
+        const invoice = {
+          id: Date.now(),
+          tenantId: selectedTenant,
+          invoiceAmount: Number(invoiceAmount),
+          unitUsed: Number(unitUsed),
+          unitRate: settings.unitRate,
+          extraCharge: Number(extraCharge),
+          qrDataUrl,
+          date: new Date().toISOString().slice(0, 10),
+        };
+        const newList = [invoice, ...invoiceList];
+        setInvoiceList(newList);
+        localforage.setItem(INVOICE_DB, newList);
+        setOpen(false);
+        setSnack({ open: true, msg: "Invoice saved!", sev: "success" });
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Invoices</Typography>
+          <Button variant="contained" onClick={openDialog}>Generate Invoice</Button>
+          <List>
+            {invoiceList.map(inv => {
+              const tenant = tenants.find(t => t.id === Number(inv.tenantId));
+              return (
+                <ListItem key={inv.id} sx={{ flexDirection: "column", alignItems: "flex-start" }}>
+                  <ListItemText
+                    primary={`Tenant: ${tenant ? tenant.name : "?"} | Date: ${inv.date}`}
+                    secondary={
+                      <>
+                        <div>Amount: ₹{inv.invoiceAmount}</div>
+                        <div>Units: {inv.unitUsed} × ₹{inv.unitRate} = ₹{inv.unitUsed * inv.unitRate}</div>
+                        <div>Extra: ₹{inv.extraCharge}</div>
+                        {inv.qrDataUrl && (
+                          <div>
+                            <b>Payment QR:</b><br />
+                            <img src={inv.qrDataUrl} alt="QR" width={120} />
+                          </div>
+                        )}
+                      </>
+                    }
+                  />
+                </ListItem>
+              );
+            })}
+          </List>
+          <Dialog open={open} onClose={closeDialog} fullWidth maxWidth="sm">
+            <DialogTitle>Generate Invoice</DialogTitle>
+            <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <InputLabel>Select Tenant</InputLabel>
+              <Select value={selectedTenant} onChange={e => setSelectedTenant(e.target.value)} displayEmpty>
+                <MenuItem value="">Select</MenuItem>
+                {tenants.map(t => (
+                  <MenuItem key={t.id} value={t.id}>{t.name} ({t.room})</MenuItem>
+                ))}
+              </Select>
+              <TextField label="Units Used" value={unitUsed} type="number" onChange={e => setUnitUsed(e.target.value)} />
+              <TextField label="Extra Service Charge" value={extraCharge} type="number" onChange={e => setExtraCharge(e.target.value)} />
+              <TextField label="Total Amount" value={invoiceAmount} type="number" onChange={e => setInvoiceAmount(e.target.value)} helperText="Include rent, electricity and extra charges" />
+              <Button variant="outlined" component="label" startIcon={<UploadFile />}>
+                Upload QR Code (image)
+                <input hidden accept="image/*" type="file" ref={qrInputRef} onChange={handleQrChange} />
+              </Button>
+              {qrFile && <img src={URL.createObjectURL(qrFile)} alt="qr preview" width={120} />}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeDialog}>Cancel</Button>
+              <Button variant="contained" onClick={handleGenerateInvoice}>Create Invoice</Button>
+            </DialogActions>
+          </Dialog>
+          <Snackbar open={snack.open} autoHideDuration={2000} onClose={()=>setSnack(s=>({...s,open:false}))}>
+            <Alert severity={snack.sev}>{snack.msg}</Alert>
+          </Snackbar>
+        </Box>
+      );
+    }
+
+    // Settings
+    function Settings() {
+      const [unitRate, setUnitRate] = React.useState(7);
+      const [defaultServiceCharge, setDefaultServiceCharge] = React.useState(0);
+      const [snack, setSnack] = React.useState(false);
+
+      React.useEffect(() => {
+        localforage.getItem(SETTINGS_DB).then(val => {
+          if (val) {
+            setUnitRate(val.unitRate || 7);
+            setDefaultServiceCharge(val.defaultServiceCharge || 0);
+          }
+        });
+      }, []);
+
+      const saveSettings = () => {
+        localforage.setItem(SETTINGS_DB, { unitRate, defaultServiceCharge });
+        setSnack(true);
+      };
+
+      return (
+        <Box mb={3}>
+          <Typography variant="h5">Settings</Typography>
+          <Box display="flex" gap={2} mt={1} alignItems="center" flexWrap="wrap">
+            <TextField label="Electricity Unit Rate (₹/unit)" type="number" value={unitRate} onChange={e => setUnitRate(Number(e.target.value))} />
+            <TextField label="Default Additional Service Charge (₹)" type="number" value={defaultServiceCharge} onChange={e => setDefaultServiceCharge(Number(e.target.value))} />
+            <Button variant="contained" onClick={saveSettings}>Save</Button>
+          </Box>
+          <Snackbar open={snack} autoHideDuration={2000} onClose={()=>setSnack(false)}><Alert severity="success">Settings saved!</Alert></Snackbar>
+        </Box>
+      );
+    }
+
+    // Main App
+    function App() {
+      const [tab, setTab] = React.useState(0);
+      return (
+        <>
+          <AppBar position="static">
+            <Toolbar>
+              <Typography variant="h6" sx={{ flexGrow: 1 }}>Tenant & Room Management</Typography>
+            </Toolbar>
+            <Tabs value={tab} onChange={(_, v) => setTab(v)} centered>
+              <Tab label="Rooms" />
+              <Tab label="Tenants" />
+              <Tab label="Electricity" />
+              <Tab label="Services" />
+              <Tab label="Invoices" />
+              <Tab label="Settings" />
+            </Tabs>
+          </AppBar>
+          <Container>
+            <Box mt={2}>
+              {tab === 0 && <RoomList />}
+              {tab === 1 && <TenantList />}
+              {tab === 2 && <ElectricityManager />}
+              {tab === 3 && <ServiceManager />}
+              {tab === 4 && <InvoiceManager />}
+              {tab === 5 && <Settings />}
+            </Box>
+          </Container>
+        </>
+      );
+    }
+
+    // Render
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
 </body>
 </html>
