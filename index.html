@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tenant & Room Manager</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Tenant & Room Manager</h1>
+  <button onclick="showAddRoomForm()">Add Room</button>
+  <button onclick="showAddTenantForm()">Add Tenant</button>
+  <div id="main"></div>
+
+  <!-- Add Room Form -->
+  <div id="roomForm" class="modal" style="display:none">
+    <form onsubmit="addRoom(event)">
+      <h2>Add Room</h2>
+      <input required placeholder="Room Name/Number" id="roomName" />
+      <button type="submit">Save</button>
+      <button type="button" onclick="hideModals()">Cancel</button>
+    </form>
+  </div>
+
+  <!-- Add Tenant Form -->
+  <div id="tenantForm" class="modal" style="display:none">
+    <form onsubmit="addTenant(event)">
+      <h2>Add Tenant</h2>
+      <input required placeholder="Tenant Name" id="tenantName" />
+      <select id="tenantRoom"></select>
+      <label>Move-in Date: <input type="date" id="moveInDate" required /></label>
+      <label>Verified? <input type="checkbox" id="verified" /></label>
+      <label>Rent Rate: <input type="number" id="rentRate" /></label>
+      <label>Electricity Meter (Prev): <input type="number" id="meterPrev" /></label>
+      <label>Electricity Meter (Current): <input type="number" id="meterCurr" /></label>
+      <label>Additional Services: <input type="text" id="addonService" placeholder="Service,Charge;..." /></label>
+      <button type="submit">Save</button>
+      <button type="button" onclick="hideModals()">Cancel</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
